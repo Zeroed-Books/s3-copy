@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"mime"
 	"os"
 	"path/filepath"
 
@@ -54,8 +55,9 @@ func main() {
 
 // uploadObject contains information about a file to upload.
 type uploadObject struct {
-	Path string
-	Body io.Reader
+	Path        string
+	Body        io.Reader
+	ContentType string
 }
 
 // An uploader allows for uploading a file to a remote location.
@@ -87,11 +89,12 @@ func newS3Uploader(client *s3manager.Uploader, bucket, fileACL string) s3Uploade
 
 func (s *s3Uploader) Upload(object *uploadObject) error {
 	_, err := s.base.Upload(&s3manager.UploadInput{
-		Bucket:   aws.String(s.bucket),
-		Key:      aws.String(object.Path),
-		ACL:      aws.String(s.fileACL),
-		Body:     object.Body,
-		Metadata: s.Tags,
+		Bucket:      aws.String(s.bucket),
+		Key:         aws.String(object.Path),
+		ACL:         aws.String(s.fileACL),
+		Body:        object.Body,
+		ContentType: aws.String(object.ContentType),
+		Metadata:    s.Tags,
 	})
 
 	if err != nil {
@@ -117,6 +120,9 @@ func createUploadFunc(fsys fs.FS, client uploader) fs.WalkDirFunc {
 			return nil
 		}
 
+		extension := filepath.Ext(path)
+		contentType := mime.TypeByExtension(extension)
+
 		file, err := fsys.Open(path)
 		if err != nil {
 			return fmt.Errorf("could not open %s for reading: %v", path, err)
@@ -124,8 +130,9 @@ func createUploadFunc(fsys fs.FS, client uploader) fs.WalkDirFunc {
 		defer file.Close()
 
 		err = client.Upload(&uploadObject{
-			Path: path,
-			Body: file,
+			Path:        path,
+			Body:        file,
+			ContentType: contentType,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to upload %s: %v", path, err)

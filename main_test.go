@@ -181,8 +181,30 @@ func Test_createUploadFunc(t *testing.T) {
 				modTime: time.Time{},
 			},
 			want: &uploadObject{
-				Body: strings.NewReader("some body"),
-				Path: "foo.txt",
+				Body:        strings.NewReader("some body"),
+				Path:        "foo.txt",
+				ContentType: "text/plain; charset=utf-8",
+			},
+		},
+		{
+			desc: "successful javascript upload",
+			fsys: mockFS{
+				files: map[string]mockFile{
+					"app/index.js": {body: strings.NewReader("let foo = 'bar';")},
+				},
+			},
+			client: mockUploader{},
+			path:   "app/index.js",
+			entry: mockFileInfo{
+				name:    "app/index.js",
+				size:    12,
+				mode:    0,
+				modTime: time.Time{},
+			},
+			want: &uploadObject{
+				Body:        strings.NewReader("let foo = 'bar';"),
+				Path:        "app/index.js",
+				ContentType: "application/javascript",
 			},
 		},
 	}
@@ -205,6 +227,10 @@ func Test_createUploadFunc(t *testing.T) {
 
 			if tC.client.uploadedObject.Path != tC.want.Path {
 				t.Fatalf("Expected upload to path %q; got %q", tC.want.Path, tC.client.uploadedObject.Path)
+			}
+
+			if tC.client.uploadedObject.ContentType != tC.want.ContentType {
+				t.Fatalf("Expected content type %q; got %q", tC.want.ContentType, tC.client.uploadedObject.ContentType)
 			}
 
 			wantBody, err := ioutil.ReadAll(tC.want.Body)
